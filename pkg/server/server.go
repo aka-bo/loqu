@@ -1,12 +1,14 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/golang/glog"
 )
@@ -21,11 +23,14 @@ type Options struct {
 func Run(o *Options) {
 	glog.Infof("Run called with the following: %#v", o)
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+	stop := make(chan bool, 1)
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, syscall.SIGTERM, syscall.SIGINT)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		glog.V(3).Infof("Handling %s", req.URL.Path)
+
 		values := &struct {
 			Path   string
 			Query  string
@@ -42,6 +47,7 @@ func Run(o *Options) {
 		}
 		write(w, http.StatusOK, b)
 	})
+	mux.Handle("/healthcheck", healthCheckHandler(stop))
 
 	addr := fmt.Sprintf(":%d", o.ListenPort)
 	server := &http.Server{
@@ -57,8 +63,19 @@ func Run(o *Options) {
 		}
 	}()
 
-	sig := <-stop
-	glog.Infof("%v signal received. shutting down...", sig)
+	sig := <-shutdown
+
+	glog.Infof("%v signal received. signaling healthcheck to fail", sig)
+	stop <- true
+
+	glog.Infof("shutting down in %v seconds", o.ShutdownDelaySeconds)
+	<-time.After(time.Duration(o.ShutdownDelaySeconds) * time.Second)
+	glog.Infof("proceeding with shutdown")
+
+	glog.Infof("commencing graceful shutdown of web server")
+	server.Shutdown(context.Background())
+
+	glog.Flush()
 }
 
 func write(w http.ResponseWriter, status int, v []byte) {

@@ -15,8 +15,8 @@ limitations under the License.
 */
 package main
 
-import "github.secureserver.net/appsol/loquaciousd/cmd"
+import "github.secureserver.net/appsol/loqu/cmd"
 
 func main() {
-  cmd.Execute()
+	cmd.Execute()
 }
