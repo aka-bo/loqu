@@ -19,7 +19,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	"github.com/aka-bo/loquaciousd/pkg/server"
+	"github.com/aka-bo/loqu/pkg/server"
 )
 
 // serveCmd represents the serve command

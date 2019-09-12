@@ -15,8 +15,8 @@ limitations under the License.
 */
 package main
 
-import "github.com/aka-bo/loquaciousd/cmd"
+import "github.com/aka-bo/loqu/cmd"
 
 func main() {
-  cmd.Execute()
+	cmd.Execute()
 }
