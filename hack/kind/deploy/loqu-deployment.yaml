@@ -1,0 +1,46 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: loqu
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: loqu
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+      - image: 795669731331.dkr.ecr.us-east-1.amazonaws.com/appsol/loqu:0.0.1
+        name: loqu
+        args:
+        - serve
+        - --port=8080
+        - --shutdown-delay=15
+        - -v=3
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /healthcheck
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 2
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /healthcheck
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 2
