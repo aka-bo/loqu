@@ -3,58 +3,62 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"os"
-	"time"
 
 	"github.com/golang/glog"
+	"github.com/google/uuid"
 )
 
-// HealthCheckHandler runs the healthcheck and returns ok if healthy
-func healthCheckHandler(stop chan bool) http.Handler {
-	host, err := os.Hostname()
-	if err != nil {
-		panic(err)
+//HealthCheck provides a handler for health check requests
+type HealthCheck struct {
+	serverInfo serverInfo
+
+	stopChan chan bool
+}
+
+//Handle healcheck requests
+func (h *HealthCheck) Handle(w http.ResponseWriter, r *http.Request) {
+	id := uuid.New()
+	glog.V(3).Infof("[%s] Handling %s", id, r.URL.Path)
+
+	select {
+	case <-h.stopChan:
+		glog.Infof("[%s] Shutdown signal received. %s will now begin returning error codes.", id, r.URL.Path)
+		h.serverInfo.Stopping = true
+	default:
 	}
 
-	var shutdown bool
-	started := time.Now()
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		glog.V(3).Infof("Handling %s", r.URL.Path)
-
-		select {
-		case <-stop:
-			glog.Infof("Shutdown signal received. %s will now begin returning error codes.", r.URL.Path)
-			shutdown = true
-		default:
-		}
-
-		b, err := json.Marshal(struct {
-			Healthy  bool
-			Shutdown bool
-			Started  time.Time
-			Hostname string
-		}{
-			Healthy:  true,
-			Shutdown: shutdown,
-			Started:  started,
-			Hostname: host,
-		})
-
-		w.Header().Set("Content-Type", "application/json")
-
-		if err != nil {
-			write(w, http.StatusInternalServerError, errorResponse("Unable to marshal json response"))
-			return
-		}
-
-		status := http.StatusOK
-
-		if shutdown {
-			status = http.StatusInternalServerError
-			glog.Info("returning unhealthy because of shutdown signal")
-		}
-
-		write(w, status, b)
+	b, err := json.Marshal(struct {
+		Healthy bool
+		Info    *response
+	}{
+		Healthy: true,
+		Info:    buildResponse(id, &h.serverInfo, r),
 	})
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err != nil {
+		write(w, http.StatusInternalServerError, errorResponse(id, "Unable to marshal json response"))
+		return
+	}
+
+	status := http.StatusOK
+
+	if h.serverInfo.Stopping {
+		status = http.StatusInternalServerError
+		glog.Info("returning unhealthy because of shutdown signal")
+	}
+
+	write(w, status, b)
+}
+
+//Start the HealthCheck
+func (h *HealthCheck) Start() {
+	h.stopChan = make(chan bool, 1)
+}
+
+//Stop signals that the shutdown process has begun
+func (h *HealthCheck) Stop() {
+	h.serverInfo.Stopping = true
+	h.stopChan <- true
 }
