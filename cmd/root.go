@@ -79,7 +79,7 @@ func initConfig() {
 
 		// Search config in home directory with name ".loquaciousd" (without extension).
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".loquaciousd")
+		viper.SetConfigName(".loqu")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match
