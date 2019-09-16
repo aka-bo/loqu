@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -34,6 +35,7 @@ type requestInfo struct {
 	Path    string      `json:"path"`
 	Query   string      `json:"query,omitempty"`
 	Method  string      `json:"method"`
+	Body    string      `json:"body,omitempty"`
 	Headers http.Header `json:"headers"`
 }
 
@@ -127,6 +129,10 @@ func Run(o *Options) {
 }
 
 func buildResponse(id uuid.UUID, server *serverInfo, r *http.Request) *response {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		glog.Fatal(err)
+	}
 	return &response{
 		ID: id,
 		Client: clientInfo{
@@ -134,6 +140,7 @@ func buildResponse(id uuid.UUID, server *serverInfo, r *http.Request) *response 
 		},
 		Server: *server,
 		Request: requestInfo{
+			Body:    string(body),
 			Path:    r.URL.Path,
 			Query:   r.URL.RawQuery,
 			Method:  r.Method,

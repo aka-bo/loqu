@@ -2,19 +2,19 @@
 # Image URL to use all building/pushing image targets
 IMG ?= 795669731331.dkr.ecr.us-east-1.amazonaws.com/appsol/loqu:0.0.1
 
-all: server
+all: build
 
 # Run tests
 test: fmt vet
 	go test ./{cmd,pkg}/... -coverprofile cover.out
 
-# Build manager binary
-server: fmt vet
+# Build loqu binary
+build: fmt vet
 	go build -o bin/loqu main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
-run: server
-	./bin/loqu serve
+run: build
+	./bin/loqu serve $(filter-out $@,$(MAKECMDGOALS))
 
 # Run go fmt against code
 fmt:
@@ -25,9 +25,12 @@ vet:
 	go vet ./...
 
 # Build the docker image
-docker-build: test
+docker-build: test build
 	docker build . -t ${IMG}
 
 # Push the docker image
 docker-push:
 	docker push ${IMG}
+
+%:
+    @:
