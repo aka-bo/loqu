@@ -33,6 +33,7 @@ var callCmd = &cobra.Command{
 	Short: "execute calls against a web server",
 	Run: func(cmd *cobra.Command, args []string) {
 		glog.Infoln("call called")
+		defer glog.Flush()
 		client.Run(clientOptions)
 	},
 }

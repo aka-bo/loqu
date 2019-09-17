@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-logr/glogr"
 	"github.com/go-logr/logr"
+	"github.com/aka-bo/loqu/pkg/util"
 )
 
 // Options is used to configure the client
@@ -59,6 +60,11 @@ func (o *Options) postContinuously(logger logr.Logger) {
 }
 
 func (o *Options) post(logger logr.Logger) {
+	url := fmt.Sprintf("http://%s:%d/post", o.Host, o.Port)
+	id := util.NewRequestID()
+	logger = logger.WithValues("requestID", id, "url", url)
+	logger.Info("post")
+
 	requestBody, err := json.Marshal(map[string]string{
 		"loqu": "loqu",
 	})
@@ -73,11 +79,11 @@ func (o *Options) post(logger logr.Logger) {
 		Timeout: timeout,
 	}
 
-	url := fmt.Sprintf("http://%s:%d/post", o.Host, o.Port)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
 	if err != nil {
-		logger.Error(err, "failed to create new request", "url", url)
+		logger.Error(err, "failed to create new request")
 	}
+	req.Header.Set(util.KeyRequestID, id)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -91,6 +97,6 @@ func (o *Options) post(logger logr.Logger) {
 		logger.Error(err, "error reading response")
 		return
 	}
-
+	logger.Info("response received", "code", resp.StatusCode)
 	fmt.Println(string(body))
 }
