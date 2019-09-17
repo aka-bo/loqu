@@ -3,8 +3,7 @@ package server
 import (
 	"net/http"
 
-	"github.com/golang/glog"
-	"github.com/google/uuid"
+	"github.com/aka-bo/loqu/pkg/util"
 )
 
 //Default is the default request handler
@@ -16,27 +15,27 @@ type Default struct {
 
 //Handle the request and write a response
 func (d *Default) Handle(w http.ResponseWriter, r *http.Request) {
-	id := uuid.New()
-	glog.V(3).Infof("[%s] Handling %s", id, r.URL)
+	logger := util.WithID("Handle", r).WithValues("path", r.URL.Path)
+	logger.Info("Handling request")
 
 	select {
 	case <-d.stopChan:
-		glog.Infof("[%s] Shutdown signal received. %s will continue processing normally.", id, r.URL.Path)
+		logger.Info("Shutdown signal received. processing will continue normally.")
 		d.serverInfo.Stopping = true
 	default:
 	}
 
-	values := buildResponse(id, &d.serverInfo, r)
+	values := buildResponse(&d.serverInfo, r)
 	b, err := marshal(values, true)
 	if err != nil {
-		glog.Errorf("[%s] unable to marshal response with values=%v", id, values)
-		write(w, http.StatusInternalServerError, errorResponse(id, "unable to marshal response"))
+		logger.Error(err, "Unable to marshal response", "values", values)
+		write(w, http.StatusInternalServerError, errorResponse("unable to marshal response"), logger)
 	}
-	if glog.V(4) {
+	if logger.V(4).Enabled() {
 		b2, _ := marshal(values, false)
-		glog.Infof("[%s] Response: %s", id, b2)
+		logger.Info("Writing response", "body", string(b2))
 	}
-	write(w, http.StatusOK, b)
+	write(w, http.StatusOK, b, logger)
 }
 
 //Start the HealthCheck

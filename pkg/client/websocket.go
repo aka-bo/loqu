@@ -2,26 +2,35 @@ package client
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"time"
 
-	"github.com/golang/glog"
+	"github.com/go-logr/logr"
 	"github.com/gorilla/websocket"
+
+	"github.com/aka-bo/loqu/pkg/util"
 )
 
-func (o *Options) dial() {
+func (o *Options) dial(logger logr.Logger) {
+	id := util.NewRequestID()
+
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
 	addr := fmt.Sprintf("%s:%d", o.Host, o.Port)
 	u := url.URL{Scheme: "ws", Host: addr, Path: "/echo"}
-	glog.Infof("connecting to %s", u.String())
+	logger = logger.WithValues("requestID", id, "url", u.String())
+	logger.Info("connecting to url")
 
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	headers := http.Header{
+		util.KeyRequestID: []string{id},
+	}
+	c, _, err := websocket.DefaultDialer.Dial(u.String(), headers)
 	if err != nil {
-		glog.Fatal("dial:", err)
+		logger.Error(err, "failed to connect to url")
 	}
 	defer c.Close()
 
@@ -32,10 +41,10 @@ func (o *Options) dial() {
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
-				glog.Errorf("read: %v", err)
+				logger.Error(err, "read error")
 				return
 			}
-			glog.Infof("recv: %s", message)
+			logger.Info("received message", "message", string(message))
 		}
 	}()
 
@@ -51,7 +60,7 @@ func (o *Options) dial() {
 	writeMessage := func(t time.Time) {
 		err := c.WriteMessage(websocket.TextMessage, []byte(t.String()))
 		if err != nil {
-			glog.Errorf("write: %v", err)
+			logger.Error(err, "write error", err)
 			return
 		}
 	}
@@ -70,13 +79,13 @@ func (o *Options) dial() {
 		case t := <-ticker.C:
 			writeMessage(t)
 		case <-interrupt:
-			glog.Info("interrupt")
+			logger.Info("interrupt")
 
 			// Cleanly close the connection by sending a close message and then
 			// waiting (with timeout) for the server to close the connection.
 			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
-				glog.Errorf("write close: %v", err)
+				logger.Error(err, "error closing the connection")
 				return
 			}
 			select {

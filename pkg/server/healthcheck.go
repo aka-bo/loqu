@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/golang/glog"
-	"github.com/google/uuid"
+	"github.com/aka-bo/loqu/pkg/util"
 )
 
 //HealthCheck provides a handler for health check requests
@@ -17,12 +16,12 @@ type HealthCheck struct {
 
 //Handle healcheck requests
 func (h *HealthCheck) Handle(w http.ResponseWriter, r *http.Request) {
-	id := uuid.New()
-	glog.V(3).Infof("[%s] Handling %s", id, r.URL.Path)
+	logger := util.WithID("Handle", r).WithValues("path", r.URL.Path)
+	logger.Info("Handling request")
 
 	select {
 	case <-h.stopChan:
-		glog.Infof("[%s] Shutdown signal received. %s will now begin returning error codes.", id, r.URL.Path)
+		logger.Info("Shutdown signal received. Handler will now begin returning error codes")
 		h.serverInfo.Stopping = true
 	default:
 	}
@@ -32,13 +31,13 @@ func (h *HealthCheck) Handle(w http.ResponseWriter, r *http.Request) {
 		Info    *response
 	}{
 		Healthy: true,
-		Info:    buildResponse(id, &h.serverInfo, r),
+		Info:    buildResponse(&h.serverInfo, r),
 	})
 
 	w.Header().Set("Content-Type", "application/json")
 
 	if err != nil {
-		write(w, http.StatusInternalServerError, errorResponse(id, "Unable to marshal json response"))
+		write(w, http.StatusInternalServerError, errorResponse("Unable to marshal json response"), logger)
 		return
 	}
 
@@ -46,10 +45,10 @@ func (h *HealthCheck) Handle(w http.ResponseWriter, r *http.Request) {
 
 	if h.serverInfo.Stopping {
 		status = http.StatusInternalServerError
-		glog.Info("returning unhealthy because of shutdown signal")
+		logger.Info("Returning unhealthy because of shutdown signal")
 	}
 
-	write(w, status, b)
+	write(w, status, b, logger)
 }
 
 //Start the HealthCheck

@@ -10,7 +10,8 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/golang/glog"
+	"github.com/go-logr/glogr"
+	"github.com/go-logr/logr"
 )
 
 // Options is used to configure the client
@@ -24,20 +25,21 @@ type Options struct {
 
 // Run the client
 func Run(o *Options) {
-	glog.Infof("Run called with the following: %#v", o)
+	logger := glogr.New().WithName("Client")
+	logger.Info("Run called", "options", o)
 
 	if o.UseWebSocket {
-		o.dial()
+		o.dial(logger)
 	} else {
-		o.postContinuously()
+		o.postContinuously(logger)
 	}
 }
 
-func (o *Options) postContinuously() {
+func (o *Options) postContinuously(logger logr.Logger) {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	o.post()
+	o.post(logger)
 	if o.IntervalSeconds <= 0 {
 		return
 	}
@@ -48,21 +50,22 @@ func (o *Options) postContinuously() {
 	for {
 		select {
 		case <-ticker.C:
-			o.post()
+			o.post(logger)
 		case <-interrupt:
-			glog.Info("interupt")
+			logger.Info("interupt")
 			return
 		}
 	}
 }
 
-func (o *Options) post() {
+func (o *Options) post(logger logr.Logger) {
 	requestBody, err := json.Marshal(map[string]string{
 		"loqu": "loqu",
 	})
 
 	if err != nil {
-		glog.Fatal(err)
+		logger.Error(err, "failed to marshal request body")
+		return
 	}
 
 	timeout := time.Duration(5 * time.Second)
@@ -73,18 +76,20 @@ func (o *Options) post() {
 	url := fmt.Sprintf("http://%s:%d/post", o.Host, o.Port)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
 	if err != nil {
-		glog.Fatal(err)
+		logger.Error(err, "failed to create new request", "url", url)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		glog.Fatal(err)
+		logger.Error(err, "error sending http request")
+		return
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		glog.Fatal(err)
+		logger.Error(err, "error reading response")
+		return
 	}
 
 	fmt.Println(string(body))
