@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/aka-bo/loqu/pkg/util"
@@ -11,20 +12,22 @@ import (
 type Echo struct {
 	serverInfo serverInfo
 
-	stopChan chan bool
-	upgrader websocket.Upgrader
+	upgrader                   websocket.Upgrader
+	shutdownGracePeriodSeconds int
 }
 
 //Start the Echo... echo... echo
 func (e *Echo) Start() {
-	e.stopChan = make(chan bool, 1)
 	e.upgrader = websocket.Upgrader{}
 }
 
 //Stop signals that the shutdown process has begun
 func (e *Echo) Stop() {
 	e.serverInfo.Stopping = true
-	e.stopChan <- true
+}
+
+func (e *Echo) isRunning() bool {
+	return !e.serverInfo.Stopping
 }
 
 //Handle websocket requests by replying with the received message
@@ -39,7 +42,8 @@ func (e *Echo) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer c.Close()
-	for {
+	for e.isRunning() {
+		logger.V(3).Info("reading from the websocket")
 		mt, message, err := c.ReadMessage()
 		if err != nil {
 			if ce, ok := err.(*websocket.CloseError); ok {
@@ -57,6 +61,16 @@ func (e *Echo) Handle(w http.ResponseWriter, r *http.Request) {
 			logger.Error(err, "write failed")
 			break
 		}
+	}
+
+	if !e.isRunning() {
+		logger.Info("Shutdown signal received. initiating websocket close.")
+		message := websocket.FormatCloseMessage(websocket.CloseGoingAway, "webserver is shutting down")
+		grace := time.Duration(e.shutdownGracePeriodSeconds)
+		c.WriteMessage(websocket.CloseMessage, message)
+
+		time.Sleep(grace)
+		logger.Info("CloseMessage sent")
 	}
 }
 

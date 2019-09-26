@@ -8,7 +8,7 @@ create_cluster() {
 
 load_images() {
     set -x
-    kind load docker-image 795669731331.dkr.ecr.us-east-1.amazonaws.com/appsol/loqu:0.0.1
+    kind load docker-image 795669731331.dkr.ecr.us-east-1.amazonaws.com/appsol/loqu:0.0.2
     set +x
 }
 

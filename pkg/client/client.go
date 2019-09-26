@@ -2,7 +2,6 @@ package client
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -22,6 +21,15 @@ type Options struct {
 
 	UseWebSocket    bool
 	IntervalSeconds int
+	Data            *string
+}
+
+func (o *Options) dataOrDefault(data fmt.Stringer) []byte {
+	if o.Data != nil {
+		return []byte(*o.Data)
+	}
+
+	return []byte(data.String())
 }
 
 // Run the client
@@ -65,21 +73,12 @@ func (o *Options) post(logger logr.Logger) {
 	logger = logger.WithValues("requestID", id, "url", url)
 	logger.Info("post")
 
-	requestBody, err := json.Marshal(map[string]string{
-		"loqu": "loqu",
-	})
-
-	if err != nil {
-		logger.Error(err, "failed to marshal request body")
-		return
-	}
-
 	timeout := time.Duration(5 * time.Second)
 	client := http.Client{
 		Timeout: timeout,
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(o.dataOrDefault(time.Now())))
 	if err != nil {
 		logger.Error(err, "failed to create new request")
 	}

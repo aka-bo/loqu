@@ -16,6 +16,9 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
@@ -34,6 +37,14 @@ var callCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		glog.Infoln("call called")
 		defer glog.Flush()
+		if cmd.Flags().Changed("data") {
+			data, err := cmd.Flags().GetString("data")
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			clientOptions.Data = &data
+		}
 		client.Run(clientOptions)
 	},
 }
@@ -50,8 +61,9 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// clientCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	callCmd.Flags().StringVarP(&clientOptions.Host, "host", "H", clientOptions.Host, "the target host")
-	callCmd.Flags().IntVarP(&clientOptions.Port, "port", "p", clientOptions.Port, "the port the target host is listening on")
-	callCmd.Flags().BoolVar(&clientOptions.UseWebSocket, "ws", false, "when true the websocket protocol will be used for server communications")
-	callCmd.Flags().IntVarP(&clientOptions.IntervalSeconds, "interval", "i", 0, "if interval is greater than 0 (1 when used with the --ws flag), requests will be sent continuously spaced at specified intervals in seconds.")
+	callCmd.Flags().StringVarP(&clientOptions.Host, "host", "H", clientOptions.Host, "The target host")
+	callCmd.Flags().IntVarP(&clientOptions.Port, "port", "p", clientOptions.Port, "The port the target host is listening on")
+	callCmd.Flags().BoolVar(&clientOptions.UseWebSocket, "ws", false, "Use the websocket protocol will be used for server communications")
+	callCmd.Flags().IntVarP(&clientOptions.IntervalSeconds, "interval", "i", 0, "if interval is greater than 0, requests will be sent continuously spaced at specified intervals in seconds. When used in conjuction with the --ws flag, a single websocket connection will be used for all writes")
+	callCmd.Flags().StringP("data", "d", "", "Data to send to the target web server")
 }

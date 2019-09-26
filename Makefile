@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= 795669731331.dkr.ecr.us-east-1.amazonaws.com/appsol/loqu:0.0.1
+IMG ?= 795669731331.dkr.ecr.us-west-2.amazonaws.com/utils/loqu:0.0.2
 
 all: build
 

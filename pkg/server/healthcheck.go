@@ -11,7 +11,7 @@ import (
 type HealthCheck struct {
 	serverInfo serverInfo
 
-	stopChan chan bool
+	// stopChan chan bool
 }
 
 //Handle healcheck requests
@@ -19,11 +19,8 @@ func (h *HealthCheck) Handle(w http.ResponseWriter, r *http.Request) {
 	logger := util.WithID("Handle", r).WithValues("path", r.URL.Path)
 	logger.Info("Handling request")
 
-	select {
-	case <-h.stopChan:
-		logger.Info("Shutdown signal received. Handler will now begin returning error codes")
-		h.serverInfo.Stopping = true
-	default:
+	if h.serverInfo.Stopping {
+		logger.Info("Shutdown signal received. Handler will be returning an error code.")
 	}
 
 	b, err := json.Marshal(struct {
@@ -53,11 +50,11 @@ func (h *HealthCheck) Handle(w http.ResponseWriter, r *http.Request) {
 
 //Start the HealthCheck
 func (h *HealthCheck) Start() {
-	h.stopChan = make(chan bool, 1)
+	// h.stopChan = make(chan bool, 1)
 }
 
 //Stop signals that the shutdown process has begun
 func (h *HealthCheck) Stop() {
 	h.serverInfo.Stopping = true
-	h.stopChan <- true
+	// h.stopChan <- true
 }
