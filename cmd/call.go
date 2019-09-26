@@ -33,7 +33,7 @@ var clientOptions = &client.Options{
 // clientCmd represents the client command
 var callCmd = &cobra.Command{
 	Use:   "call",
-	Short: "execute calls against a web server",
+	Short: "Execute calls against a web server",
 	Run: func(cmd *cobra.Command, args []string) {
 		glog.Infoln("call called")
 		defer glog.Flush()
