@@ -57,19 +57,40 @@ func (o *Options) dial(logger logr.Logger) {
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
-	writeMessage := func(t time.Time) {
-		err := c.WriteMessage(websocket.TextMessage, []byte(t.String()))
+	writeMessage := func(msg []byte) {
+		err := c.WriteMessage(websocket.TextMessage, msg)
 		if err != nil {
 			logger.Error(err, "write error", err)
 			return
 		}
 	}
 
+	closeConnection := func() {
+		// Cleanly close the connection by sending a close message and then
+		// waiting (with timeout) for the server to close the connection.
+		err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		if err != nil {
+			logger.Error(err, "error closing the connection")
+			return
+		}
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+		}
+		return
+	}
+
 	select {
 	case <-done:
 		return
 	default:
-		writeMessage(time.Now())
+		writeMessage(o.dataOrDefault(time.Now()))
+	}
+
+	if o.IntervalSeconds <= 0 {
+		closeConnection()
+		return
 	}
 
 	for {
@@ -77,22 +98,10 @@ func (o *Options) dial(logger logr.Logger) {
 		case <-done:
 			return
 		case t := <-ticker.C:
-			writeMessage(t)
+			writeMessage(o.dataOrDefault(t))
 		case <-interrupt:
 			logger.Info("interrupt")
-
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
-			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				logger.Error(err, "error closing the connection")
-				return
-			}
-			select {
-			case <-done:
-			case <-time.After(time.Second):
-			}
-			return
+			closeConnection()
 		}
 	}
 }

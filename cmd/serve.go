@@ -31,6 +31,7 @@ var serveCmd = &cobra.Command{
 
 		glog.Infof("calling server.Run()")
 		server.Run(options)
+
 	},
 }
 

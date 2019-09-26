@@ -9,8 +9,6 @@ import (
 //Default is the default request handler
 type Default struct {
 	serverInfo serverInfo
-
-	stopChan chan bool
 }
 
 //Handle the request and write a response
@@ -18,11 +16,8 @@ func (d *Default) Handle(w http.ResponseWriter, r *http.Request) {
 	logger := util.WithID("Handle", r).WithValues("path", r.URL.Path)
 	logger.Info("Handling request")
 
-	select {
-	case <-d.stopChan:
+	if d.serverInfo.Stopping {
 		logger.Info("Shutdown signal received. processing will continue normally.")
-		d.serverInfo.Stopping = true
-	default:
 	}
 
 	values := buildResponse(&d.serverInfo, r)
@@ -40,11 +35,10 @@ func (d *Default) Handle(w http.ResponseWriter, r *http.Request) {
 
 //Start the HealthCheck
 func (d *Default) Start() {
-	d.stopChan = make(chan bool, 1)
+	// no-op
 }
 
 //Stop signals that the shutdown process has begun
 func (d *Default) Stop() {
 	d.serverInfo.Stopping = true
-	d.stopChan <- true
 }

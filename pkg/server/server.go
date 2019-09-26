@@ -97,7 +97,7 @@ func Run(o *Options) {
 
 	handlers := handlerMap{
 		"/":            &Default{serverInfo: serverInfo},
-		"/echo":        &Echo{serverInfo: serverInfo},
+		"/echo":        &Echo{serverInfo: serverInfo, shutdownGracePeriodSeconds: o.ShutdownDelaySeconds - 1},
 		"/healthcheck": &HealthCheck{serverInfo: serverInfo},
 	}
 
@@ -118,7 +118,7 @@ func Run(o *Options) {
 	go func() {
 		logger.Info("Starting server", "addr", addr)
 
-		if err := server.ListenAndServe(); err != nil {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error(err, "server exited with error")
 		}
 	}()
