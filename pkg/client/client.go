@@ -22,6 +22,7 @@ type Options struct {
 	UseWebSocket    bool
 	IntervalSeconds int
 	Data            *string
+	ExitMode        bool
 }
 
 func (o *Options) dataOrDefault(data fmt.Stringer) []byte {
@@ -80,22 +81,30 @@ func (o *Options) post(logger logr.Logger) {
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(o.dataOrDefault(time.Now())))
 	if err != nil {
-		logger.Error(err, "failed to create new request")
+		o.handleError(logger, err, "failed to create new request")
+		return
 	}
 	req.Header.Set(util.KeyRequestID, id)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		logger.Error(err, "error sending http request")
+		o.handleError(logger, err, "error sending http request")
 		return
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		logger.Error(err, "error reading response")
+		o.handleError(logger, err, "error reading response")
 		return
 	}
 	logger.Info("response received", "code", resp.StatusCode)
 	fmt.Println(string(body))
+}
+
+func (o *Options) handleError(logger logr.Logger, err error, msg string) {
+	logger.Error(err, msg)
+	if o.ExitMode {
+		os.Exit(1)
+	}
 }

@@ -66,4 +66,5 @@ func init() {
 	callCmd.Flags().BoolVar(&clientOptions.UseWebSocket, "ws", false, "Use the websocket protocol will be used for server communications")
 	callCmd.Flags().IntVarP(&clientOptions.IntervalSeconds, "interval", "i", 0, "if interval is greater than 0, requests will be sent continuously spaced at specified intervals in seconds. When used in conjuction with the --ws flag, a single websocket connection will be used for all writes")
 	callCmd.Flags().StringP("data", "d", "", "Data to send to the target web server")
+	callCmd.Flags().BoolVarP(&clientOptions.ExitMode, "exit", "e", false, "Exit immediately if request ends in an error or non 2XX status code")
 }
