@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,6 +20,7 @@ type Options struct {
 	Host string
 	Port int
 
+	TimeoutSeconds  int
 	UseWebSocket    bool
 	IntervalSeconds int
 	Data            *string
@@ -49,7 +51,29 @@ func (o *Options) postContinuously(logger logr.Logger) {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	o.post(logger)
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   time.Duration(o.TimeoutSeconds/2) * time.Second,
+			KeepAlive: 90 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		MaxIdleConns:          4,
+		MaxIdleConnsPerHost:   2,
+		IdleConnTimeout:       500 * time.Second,
+		TLSHandshakeTimeout:   1 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		// TODO: expose with flag
+		// DisableKeepAlives: true,
+	}
+
+	timeout := time.Duration(o.TimeoutSeconds) * time.Second
+	client := http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+	}
+
+	o.post(logger, &client)
 	if o.IntervalSeconds <= 0 {
 		return
 	}
@@ -60,7 +84,7 @@ func (o *Options) postContinuously(logger logr.Logger) {
 	for {
 		select {
 		case <-ticker.C:
-			o.post(logger)
+			o.post(logger, &client)
 		case <-interrupt:
 			logger.Info("interupt")
 			return
@@ -68,16 +92,11 @@ func (o *Options) postContinuously(logger logr.Logger) {
 	}
 }
 
-func (o *Options) post(logger logr.Logger) {
+func (o *Options) post(logger logr.Logger, client *http.Client) {
 	url := fmt.Sprintf("http://%s:%d/post", o.Host, o.Port)
 	id := util.NewRequestID()
 	logger = logger.WithValues("requestID", id, "url", url)
 	logger.Info("post")
-
-	timeout := time.Duration(5 * time.Second)
-	client := http.Client{
-		Timeout: timeout,
-	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(o.dataOrDefault(time.Now())))
 	if err != nil {
