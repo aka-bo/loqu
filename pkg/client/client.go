@@ -17,8 +17,12 @@ import (
 
 // Options is used to configure the client
 type Options struct {
-	Host string
-	Port int
+	Protocol  string
+	Host      string
+	Path      string
+	Port      int
+	RequestID string
+	Verb      string
 
 	TimeoutSeconds  int
 	UseWebSocket    bool
@@ -55,15 +59,15 @@ func (o *Options) postContinuously(logger logr.Logger) {
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout:   time.Duration(o.TimeoutSeconds/2) * time.Second,
-			KeepAlive: 90 * time.Second,
+			KeepAlive: 5 * time.Second,
 			DualStack: true,
 		}).DialContext,
 		MaxIdleConns:          4,
 		MaxIdleConnsPerHost:   2,
-		IdleConnTimeout:       500 * time.Second,
+		IdleConnTimeout:       30 * time.Second,
 		TLSHandshakeTimeout:   1 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		// TODO: expose with flag
+		// TODO: maybe expose with flag?
 		// DisableKeepAlives: true,
 	}
 
@@ -93,12 +97,15 @@ func (o *Options) postContinuously(logger logr.Logger) {
 }
 
 func (o *Options) post(logger logr.Logger, client *http.Client) {
-	url := fmt.Sprintf("http://%s:%d/post", o.Host, o.Port)
-	id := util.NewRequestID()
+	url := fmt.Sprintf("%s://%s:%d/%s", o.Protocol, o.Host, o.Port, o.Path)
+	id := o.RequestID
+	if len(id) == 0 {
+		id = util.NewRequestID()
+	}
 	logger = logger.WithValues("requestID", id, "url", url)
 	logger.Info("post")
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(o.dataOrDefault(time.Now())))
+	req, err := http.NewRequest(o.Verb, url, bytes.NewBuffer(o.dataOrDefault(time.Now())))
 	if err != nil {
 		o.handleError(logger, err, "failed to create new request")
 		return

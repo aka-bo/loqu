@@ -67,5 +67,9 @@ func init() {
 	callCmd.Flags().IntVarP(&clientOptions.IntervalSeconds, "interval", "i", 0, "If interval is greater than 0, requests will be sent continuously spaced at specified intervals in seconds. When used in conjuction with the --ws flag, a single websocket connection will be used for all writes")
 	callCmd.Flags().IntVarP(&clientOptions.TimeoutSeconds, "timeout", "t", 5, "Amount of time (in seconds) to wait for client requests")
 	callCmd.Flags().StringP("data", "d", "", "Data to send to the target web server")
+	callCmd.Flags().StringVar(&clientOptions.Path, "path", "/post", "The request path")
 	callCmd.Flags().BoolVarP(&clientOptions.ExitMode, "exit", "e", false, "Exit immediately if request ends in an error or non 2XX status code")
+	callCmd.Flags().StringVar(&clientOptions.Protocol, "proto", "http", "The request protocol")
+	callCmd.Flags().StringVar(&clientOptions.RequestID, "id", "", "The x-request-id to use for each request, if blank a new ID will be generated for each request")
+	callCmd.Flags().StringVar(&clientOptions.Verb, "verb", "POST", "The http verb to use for each request")
 }
