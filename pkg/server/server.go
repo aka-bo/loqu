@@ -125,7 +125,8 @@ func Run(o *Options) {
 
 	sig := <-shutdown
 
-	logger.Info("signal received. signaling handlers", "signal", sig.String())
+	logger.Info("signal received. signaling handlers and disabling keep-alives", "signal", sig.String())
+	server.SetKeepAlivesEnabled(false)
 	handlers.shutdown()
 
 	logger.Info("shutting down with delay", "delay", o.ShutdownDelaySeconds)
