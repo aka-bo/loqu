@@ -1,5 +1,5 @@
 # loqu
-A small web server/client utility that has a lot to say
+A small web server/client utility that has a lot to say.
 
 # Usage
 ```
