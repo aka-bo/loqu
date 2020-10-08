@@ -30,14 +30,8 @@ var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "loquaciousd",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Use:   "loqu",
+	Short: "loqu is a web server (and client) with one simple job: log all the things!",
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) {},
@@ -60,7 +54,7 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.loquaciousd.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.loqu.yaml)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
@@ -83,9 +77,9 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		// Search config in home directory with name ".loquaciousd" (without extension).
+		// Search config in home directory with name ".loqu" (without extension).
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".loquaciousd")
+		viper.SetConfigName(".loqu")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match

@@ -1,14 +1,21 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/go-logr/glogr"
+	"github.com/go-logr/logr"
 	"github.com/golang/glog"
+
+	"github.secureserver.net/appsol/loqu/pkg/util"
 )
 
 // Options is used to configure the server
@@ -17,31 +24,86 @@ type Options struct {
 	ListenPort           int
 }
 
+type clientInfo struct {
+	Address string `json:"address"`
+}
+
+type serverInfo struct {
+	Hostname string    `json:"hostname"`
+	Started  time.Time `json:""`
+	Stopping bool      `json:"stopping"`
+}
+
+type requestInfo struct {
+	Path    string      `json:"path"`
+	Query   string      `json:"query,omitempty"`
+	Method  string      `json:"method"`
+	Body    string      `json:"body,omitempty"`
+	Headers http.Header `json:"headers"`
+}
+
+type response struct {
+	ID      string      `json:"id"`
+	Client  clientInfo  `json:"client"`
+	Server  serverInfo  `json:"server"`
+	Request requestInfo `json:"request"`
+}
+
+//Handler provides lifecycle hooks for an HttpHandler
+type Handler interface {
+	Handle(http.ResponseWriter, *http.Request)
+	Start()
+	Stop()
+}
+
+type handlerMap map[string]Handler
+
+func (h handlerMap) register(mux *http.ServeMux) {
+	for k, v := range h {
+		v.Start()
+		mux.Handle(k, requestIDHandler(v.Handle))
+	}
+}
+
+func requestIDHandler(h http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.ServeHTTP(w, r.WithContext(util.RequestContext(r)))
+	})
+}
+
+func (h handlerMap) shutdown() {
+	for _, v := range h {
+		v.Stop()
+	}
+}
+
 // Run the server, get them logs flowing
 func Run(o *Options) {
-	glog.Infof("Run called with the following: %#v", o)
+	logger := glogr.New().WithName("Server")
+	logger.Info("Run called", "options", o)
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+	host, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, syscall.SIGTERM, syscall.SIGINT)
+
+	serverInfo := serverInfo{
+		Hostname: host,
+		Started:  time.Now(),
+	}
+
+	handlers := handlerMap{
+		"/":            &Default{serverInfo: serverInfo},
+		"/echo":        &Echo{serverInfo: serverInfo, shutdownGracePeriodSeconds: o.ShutdownDelaySeconds - 1},
+		"/healthcheck": &HealthCheck{serverInfo: serverInfo},
+	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		values := &struct {
-			Path   string
-			Query  string
-			Method string
-		}{
-			Path:   req.URL.Path,
-			Query:  req.URL.RawQuery,
-			Method: req.Method,
-		}
-		b, err := json.Marshal(values)
-		if err != nil {
-			glog.Errorf("unable to marshal response with values=%v", values)
-			write(w, http.StatusInternalServerError, errorResponse("unable to marshal response"))
-		}
-		write(w, http.StatusOK, b)
-	})
+	handlers.register(mux)
+	// mux.Handle("/demo", demoHandler())
 
 	addr := fmt.Sprintf(":%d", o.ListenPort)
 	server := &http.Server{
@@ -49,22 +111,67 @@ func Run(o *Options) {
 		Handler: mux,
 	}
 
-	go func() {
-		glog.Infof("Listing on http://0.0.0.0%s", addr)
+	server.RegisterOnShutdown(func() {
+		logger.Info("Shutdown() called on http.Server")
+	})
 
-		if err := server.ListenAndServe(); err != nil {
-			glog.Fatal(err)
+	go func() {
+		logger.Info("Starting server", "addr", addr)
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error(err, "server exited with error")
 		}
 	}()
 
-	sig := <-stop
-	glog.Infof("%v signal received. shutting down...", sig)
+	sig := <-shutdown
+
+	logger.Info("signal received. signaling handlers and disabling keep-alives", "signal", sig.String())
+	server.SetKeepAlivesEnabled(false)
+	handlers.shutdown()
+
+	logger.Info("shutting down with delay", "delay", o.ShutdownDelaySeconds)
+	<-time.After(time.Duration(o.ShutdownDelaySeconds) * time.Second)
+	logger.Info("proceeding with shutdown")
+
+	logger.Info("commencing graceful shutdown of web server")
+	server.Shutdown(context.Background())
+
+	glog.Flush()
 }
 
-func write(w http.ResponseWriter, status int, v []byte) {
+func buildResponse(server *serverInfo, r *http.Request) *response {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		panic(err)
+	}
+	return &response{
+		ID: util.GetRequestID(r),
+		Client: clientInfo{
+			Address: r.RemoteAddr,
+		},
+		Server: *server,
+		Request: requestInfo{
+			Body:    string(body),
+			Path:    r.URL.Path,
+			Query:   r.URL.RawQuery,
+			Method:  r.Method,
+			Headers: r.Header,
+		},
+	}
+}
+
+func marshal(v interface{}, pretty bool) ([]byte, error) {
+	if pretty {
+		return json.MarshalIndent(v, "", "    ")
+	}
+	return json.Marshal(v)
+}
+
+func write(w http.ResponseWriter, status int, v []byte, logger logr.Logger) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if _, err := w.Write(v); err != nil {
-		glog.Error("error writing data to the response writer", err.Error())
+		logger.Error(err, "error writing data to the response writer")
 	}
 }
 

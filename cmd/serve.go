@@ -19,7 +19,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	"github.secureserver.net/appsol/loquaciousd/pkg/server"
+	"github.secureserver.net/appsol/loqu/pkg/server"
 )
 
 // serveCmd represents the serve command
@@ -31,6 +31,7 @@ var serveCmd = &cobra.Command{
 
 		glog.Infof("calling server.Run()")
 		server.Run(options)
+
 	},
 }
 
